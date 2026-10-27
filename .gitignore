@@ -35,3 +35,7 @@ build/
 node_modules/
 .env
 npm-debug.log*
+
+.env
+secrets/
+*.key
