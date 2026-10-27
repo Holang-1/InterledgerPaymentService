@@ -1,543 +1,466 @@
 # Interledger Payment Service
 
-A standalone backend service for the Payment System. The service is
-intended to provide a payment API that the wider application can call,
-while keeping payment records and payment-provider integration separate
-from the user-facing application.
+A standalone backend service for the Payment System. It provides a payment API that the wider application can call while keeping payment records and Open Payments integration separate from the user-facing application.
 
-> **Project status:** This README documents the implementation confirmed
-> so far. The service currently has an Express application, health-check
-> routes, environment-based configuration, and a PostgreSQL connection
-> check. The database is currently empty, and the complete Open Payments
-> / Interledger transaction flow is not yet documented as implemented.
-> Do not treat the planned payment endpoints or external payment flow as
-> working until they are implemented and tested.
+> **Project status:** The service has a working Express API, PostgreSQL persistence for Open Payments incoming-payment requests, and a successful connection to an Interledger Open Payments test wallet. Creating a request and retrieving saved requests have been tested locally. Receiving funds, settlement verification, and automatic payment-status synchronization are not yet confirmed as implemented.
 
 ## Contents
 
--   [Current functionality](#current-functionality)
--   [Technology stack](#technology-stack)
--   [Requirements](#requirements)
--   [Clone and run locally](#clone-and-run-locally)
--   [Environment configuration](#environment-configuration)
--   [Available endpoints](#available-endpoints)
--   [How it fits into the wider
-    application](#how-it-fits-into-the-wider-application)
--   [Payment data and status](#payment-data-and-status)
--   [Project structure](#project-structure)
--   [Testing and troubleshooting](#testing-and-troubleshooting)
--   [Current limitations and next
-    steps](#current-limitations-and-next-steps)
+- [Features](#features)
+- [Technology Stack](#technology-stack)
+- [Quick Start](#quick-start)
+- [Environment Configuration](#environment-configuration)
+- [Database Setup](#database-setup)
+- [API Endpoints](#api-endpoints)
+- [Demo Shortcuts](#demo-shortcuts)
+- [Project Structure](#project-structure)
+- [Security](#security)
+- [Troubleshooting](#troubleshooting)
+- [Next Steps](#next-steps)
 
-## Current functionality
+## Features
 
-Confirmed in the current project notes:
+- Express REST API with JSON parsing and CORS middleware.
+- HTTP health check and PostgreSQL connectivity check.
+- PostgreSQL connection pool.
+- Open Payments SDK integration using `@interledger/open-payments`.
+- Authenticated lookup of the configured Open Payments wallet.
+- Creation of Open Payments incoming-payment requests.
+- Persistence of incoming-payment request details in PostgreSQL.
+- Retrieval of all saved payment requests.
+- Retrieval of a single payment request by its database UUID.
 
--   Node.js backend using Express.
--   JSON request parsing and CORS middleware.
--   Environment variables loaded with `dotenv`.
--   A `GET /health` endpoint for checking whether the HTTP service is
-    running.
--   A `GET /health/database` endpoint for checking database
-    connectivity.
--   PostgreSQL connection configuration in `src/config/database.js`.
--   Start scripts:
-    -   `npm start`
-    -   `npm run dev` (uses Nodemon for development)
+The incoming-payment creation endpoint has been tested against an Interledger test wallet. Creating a request does not mean funds have been received.
 
-The PostgreSQL database currently has no tables. Payment persistence and
-the external Open Payments / Interledger transaction flow must therefore
-be considered **in progress or planned**, unless the code has since
-changed.
+## Technology Stack
 
-## Technology stack
+| Component | Technology |
+|---|---|
+| Runtime | Node.js |
+| Package manager | npm |
+| HTTP framework | Express |
+| Environment configuration | dotenv |
+| Development runner | Nodemon |
+| Database | PostgreSQL |
+| PostgreSQL client | pg |
+| Payment integration | Open Payments SDK |
+| API format | HTTP + JSON |
 
-  --------------------------------------------------------------------------
-  Component               Technology                 Version information
-  ----------------------- -------------------------- -----------------------
-  Runtime                 Node.js                    Use the version
-                                                     required by the
-                                                     repository's
-                                                     `package.json` /
-                                                     `.nvmrc`, if present.
-                                                     The exact project
-                                                     runtime version was not
-                                                     available in the notes
-                                                     used to prepare this
-                                                     README.
-
-  Package manager         npm                        Use the npm version
-                                                     bundled with your
-                                                     installed Node.js,
-                                                     unless the repository
-                                                     specifies otherwise.
-
-  HTTP framework          Express                    Exact installed version
-                                                     is pinned in
-                                                     `package-lock.json`.
-
-  Environment             dotenv                     Exact installed version
-  configuration                                      is pinned in
-                                                     `package-lock.json`.
-
-  Development runner      Nodemon                    Used by the `dev`
-                                                     script; exact version
-                                                     is pinned in
-                                                     `package-lock.json`.
-
-  Database                PostgreSQL                 The database engine
-                                                     version has not been
-                                                     confirmed in the
-                                                     available project
-                                                     notes.
-
-  Database connectivity   PostgreSQL                 Confirm the exact
-                          client/configuration in    driver and version in
-                          `src/config/database.js`   `package.json` /
-                                                     `package-lock.json`.
-
-  API format              HTTP + JSON                REST-style endpoints.
-
-  Payment                 Open Payments /            Intended integration; a
-  interoperability target Interledger                completed protocol flow
-                                                     is not yet confirmed.
-  --------------------------------------------------------------------------
-
-**Why the versions are not guessed:** `package-lock.json` records the
-resolved JavaScript dependency versions. Check it into Git and use
-`npm ci` so a fresh clone installs the locked dependency tree. Before
-publishing this README as final, add the exact Node.js and PostgreSQL
-versions tested by the team.
-
-## Requirements
-
-Install the following on your development machine:
-
-1.  Git
-2.  Node.js and npm
-3.  PostgreSQL, either installed locally or run in a container
-4.  A terminal and an API client such as `curl` or Postman
-
-Check your installations:
-
-``` bash
-git --version
-node --version
-npm --version
-psql --version
-```
-
-The exact PostgreSQL setup depends on the local database configuration
-in `src/config/database.js` and the variables in `.env`. Use the same
-values expected by the project rather than assuming a database name,
-username, or password.
-
-## Clone and run locally
+## Quick Start
 
 ### 1. Clone the repository
 
-Replace the placeholder with the actual GitHub repository URL:
-
-``` bash
+```bash
 git clone <GITHUB_REPOSITORY_URL>
 cd InterledgerPaymentService
 ```
 
+Replace `<GITHUB_REPOSITORY_URL>` with the actual repository URL.
+
 ### 2. Install dependencies
 
-From the repository root:
-
-``` bash
+```bash
 npm ci
 ```
 
-`npm ci` installs the versions locked in `package-lock.json`. If the
-repository does not contain a `package-lock.json`, use `npm install` and
-commit the generated lockfile so other developers can reproduce the
-dependency installation.
+If `package-lock.json` is unavailable, run `npm install`.
 
 ### 3. Configure environment variables
 
-Create a local environment file if the project has not already supplied
-one:
+Create `.env` if it does not exist:
 
-``` bash
+```bash
 touch .env
 ```
 
-Open `.env` and set the variables expected by the code in
-`src/config/database.js` and `src/server.js`. At minimum, verify the
-database connection settings and the application port. **Do not commit
-`.env` or real credentials.**
+Configure the database and Open Payments credentials:
 
-Example shape only; use the exact variable names read by the project
-code:
-
-``` dotenv
+```dotenv
 PORT=3000
+
 DB_HOST=localhost
 DB_PORT=5432
 DB_NAME=<your_database_name>
 DB_USER=<your_database_user>
 DB_PASSWORD=<your_database_password>
+
+OPEN_PAYMENTS_CLIENT_WALLET_ADDRESS=<your_test_wallet_address>
+OPEN_PAYMENTS_KEY_ID=<your_open_payments_key_id>
+OPEN_PAYMENTS_PRIVATE_KEY_PATH=./secrets/private.key
 ```
 
-The database variable names above are illustrative, not a guarantee that
-the current code uses these exact names. Confirm them in
-`src/config/database.js` before running the service. If the code expects
-a single connection URL instead, configure that variable instead.
+Use the values belonging to your own environment. The private key must exist at the configured path and correspond to a developer key authorized for the wallet.
 
-### 4. Start PostgreSQL
+### 4. Apply the database migration
 
-Make sure PostgreSQL is running and that the database and user
-configured in `.env` exist. For a local PostgreSQL installation, the
-commands used to create a database depend on your operating system and
-PostgreSQL setup.
+Ensure PostgreSQL is running and the configured database exists.
 
-For example, after connecting as a database administrator, create a
-database and user that match your `.env` values. Do not use production
-credentials for local development.
+The incoming-payment table is defined in:
 
-No database tables were present at the time this README was prepared. If
-the application requires a schema or migrations, those must be added and
-run before payment records can be stored.
+`src/main/resources/db/migrations/003_create_open_payment_requests.sql`
 
-### 5. Start the service
+Apply the migration:
 
-Development mode, with Nodemon:
+```bash
+set -a
+source .env
+set +a
 
-``` bash
+PGPASSWORD="$DB_PASSWORD" psql \
+  -h "$DB_HOST" \
+  -p "${DB_PORT:-5432}" \
+  -U "$DB_USER" \
+  -d "$DB_NAME" \
+  -f src/main/resources/db/migrations/003_create_open_payment_requests.sql
+```
+
+The migration creates the `open_payment_requests` table and indexes for payment status and creation time.
+
+### 5. Run the server
+
+**Development mode with Nodemon:**
+
+```bash
 npm run dev
 ```
 
-Normal start:
+**Normal start:**
 
-``` bash
+```bash
 npm start
 ```
 
-The server uses `PORT` when configured and otherwise defaults to port
-`3000`. Unless the port is changed, the local base URL is:
+The server defaults to port `3000`, unless `PORT` is configured.
 
-``` text
+Base URL:
+
+```text
 http://localhost:3000
 ```
 
-Keep the terminal open while using the service. Stop it with `Ctrl+C`.
+Keep the server terminal open while testing. Stop the server with `Ctrl+C`.
 
-### 6. Verify that it is running
+## Environment Configuration
 
-Check the HTTP service:
+| Variable | Purpose |
+|---|---|
+| `PORT` | HTTP port; defaults to `3000`. |
+| `DB_HOST` | PostgreSQL host. |
+| `DB_PORT` | PostgreSQL port; defaults to `5432`. |
+| `DB_NAME` | PostgreSQL database name. |
+| `DB_USER` | PostgreSQL username. |
+| `DB_PASSWORD` | PostgreSQL password. |
+| `OPEN_PAYMENTS_CLIENT_WALLET_ADDRESS` | Configured Open Payments wallet address. |
+| `OPEN_PAYMENTS_KEY_ID` | Developer key ID. |
+| `OPEN_PAYMENTS_PRIVATE_KEY_PATH` | Local private key path. |
 
-``` bash
-curl -i http://localhost:3000/health
+Never commit `.env`, private keys, access tokens, or other secrets. Add `.env.example` with placeholder values for other developers.
+
+## Database Setup
+
+The `open_payment_requests` table stores incoming-payment request information.
+
+| Column | Purpose |
+|---|---|
+| `id` | Local UUID identifying the database row. |
+| `open_payment_id` | External Open Payments incoming-payment resource URL. |
+| `wallet_address` | Wallet associated with the request. |
+| `amount` | Requested amount in major currency units. |
+| `currency` | Currency code, currently defaulting to `ZAR`. |
+| `reference` | Shop, order, or payment reference. |
+| `status` | Local payment status. |
+| `received_amount` | Amount reported as received. |
+| `created_at` | Record creation timestamp. |
+| `expires_at` | Optional expiry timestamp. |
+
+The local `id` and external `open_payment_id` are different identifiers. Use the local database UUID when retrieving a request through this service's single-record endpoint.
+
+## API Endpoints
+
+The payment routes are mounted under `/api/payments`.
+
+| Method | Endpoint | Purpose |
+|---|---|---|
+| GET | `/health` | Check HTTP service health. |
+| GET | `/health/database` | Check PostgreSQL connectivity. |
+| POST | `/api/payments/open-payments` | Create and save an incoming-payment request. |
+| GET | `/api/payments/open-payments` | List saved incoming-payment requests. |
+| GET | `/api/payments/open-payments/:id` | Retrieve one request by local database UUID. |
+
+## Demo Shortcuts
+
+These commands make it easier to demonstrate the service during development or a hackathon presentation.
+
+Run them from a second terminal while the server is running.
+
+### Set the base URL
+
+```bash
+BASE_URL="http://localhost:3000"
 ```
 
-Check the database connection:
+### 1. Test the server
 
-``` bash
-curl -i http://localhost:3000/health/database
+```bash
+curl -i "$BASE_URL/health"
 ```
 
-A successful health response confirms that the relevant check passed; it
-does **not** prove that payment creation, settlement, or an external
-Open Payments transaction works.
+This checks whether the HTTP service is responding.
 
-## Environment configuration
+### 2. Test the database connection
 
-Configuration is loaded from `.env` by `dotenv`. Keep local secrets out
-of Git.
+```bash
+curl -i "$BASE_URL/health/database"
+```
 
-  -----------------------------------------------------------------------
-  Setting                             Purpose
-  ----------------------------------- -----------------------------------
-  `PORT`                              HTTP port. Defaults to `3000` if
-                                      not set.
+This checks PostgreSQL connectivity using the configured database connection.
 
-  Database settings                   Configure the PostgreSQL host,
-                                      port, database, username, and
-                                      password, or the connection URL,
-                                      according to the actual names used
-                                      in `src/config/database.js`.
-  -----------------------------------------------------------------------
+### 3. Create a payment request
 
-Recommended repository hygiene:
+```bash
+curl -sS -X POST "$BASE_URL/api/payments/open-payments" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "amount": 10.00,
+    "currency": "ZAR",
+    "reference": "SPAZA-DEMO-001"
+  }'
+```
 
--   Commit `.env.example` with variable names and safe placeholder
-    values.
--   Add `.env` to `.gitignore`.
--   Never commit passwords, private keys, access tokens, or other
-    secrets.
--   Document required variables in `.env.example` and keep it aligned
-    with the code.
+The response contains the created incoming-payment resource details.
 
-## Available endpoints
+Use a unique reference for each demonstration, such as `SPAZA-DEMO-002`, so the new record is easy to identify.
 
-The endpoints confirmed in the current implementation notes are:
+**Important:** Creating a payment request does not mean the customer has paid. This endpoint creates an incoming-payment resource; payment receipt and automatic status synchronization are separate tasks.
 
-  --------------------------------------------------------------------------
-  Method            Path                 Purpose           Status
-  ----------------- -------------------- ----------------- -----------------
-  `GET`             `/health`            Checks that the   Implemented
-                                         HTTP application  
-                                         is responding.    
+Do not publish responses containing shared secrets or access tokens.
 
-  `GET`             `/health/database`   Checks            Implemented
-                                         connectivity to   
-                                         PostgreSQL.       
-  --------------------------------------------------------------------------
+### 4. List all saved payment requests
 
-The following payment endpoints have been discussed as the intended API,
-but are **not confirmed as implemented** in the available project notes:
+```bash
+curl -sS "$BASE_URL/api/payments/open-payments"
+```
 
-  -----------------------------------------------------------------------
-  Method                  Proposed path           Intended purpose
-  ----------------------- ----------------------- -----------------------
-  `POST`                  `/api/payments`         Accept a payment
-                                                  request and create a
-                                                  payment record.
+The response contains a `payments` array.
 
-  `GET`                   `/api/payments/:id`     Retrieve a payment by
-                                                  its identifier.
+For formatted JSON, if `jq` is installed:
 
-  `GET`                   `/api/payments`         List payments, subject
-                                                  to authentication and
-                                                  authorization rules.
-  -----------------------------------------------------------------------
+```bash
+curl -sS "$BASE_URL/api/payments/open-payments" | jq
+```
 
-Do not rely on these proposed routes until they exist in the current
-source code and have tests.
+Find the request you created and copy its local `id` UUID.
 
-## How it fits into the wider application
+### 5. Retrieve one payment request
 
-The service is designed to be a **separate backend component**. The
-user-facing application should call its API over HTTP rather than
-implementing payment logic directly inside the frontend.
+Replace `<DATABASE_UUID>` with the `id` from the previous response:
 
-### Intended communication flow
+```bash
+curl -sS "$BASE_URL/api/payments/open-payments/<DATABASE_UUID>"
+```
 
-``` text
+For formatted JSON:
+
+```bash
+curl -sS "$BASE_URL/api/payments/open-payments/<DATABASE_UUID>" | jq
+```
+
+Use the database `id`, not the external `open_payment_id`.
+
+### 6. Inspect saved requests in PostgreSQL
+
+Connect to PostgreSQL using the project's environment variables:
+
+```bash
+set -a
+source .env
+set +a
+
+PGPASSWORD="$DB_PASSWORD" psql \
+  -h "$DB_HOST" \
+  -p "${DB_PORT:-5432}" \
+  -U "$DB_USER" \
+  -d "$DB_NAME"
+```
+
+Run this query inside `psql`:
+
+```sql
+SELECT
+    id,
+    reference,
+    amount,
+    currency,
+    status,
+    received_amount,
+    created_at
+FROM open_payment_requests
+ORDER BY created_at DESC
+LIMIT 10;
+```
+
+Exit PostgreSQL:
+
+```sql
+\q
+```
+
+### One-command demo sequence
+
+This checks the server, database connection, and saved requests without creating another payment:
+
+```bash
+BASE_URL="http://localhost:3000"
+
+echo "=== Server Health ==="
+curl -sS "$BASE_URL/health"
+echo -e "\n"
+
+echo "=== Database Health ==="
+curl -sS "$BASE_URL/health/database"
+echo -e "\n"
+
+echo "=== Saved Payment Requests ==="
+curl -sS "$BASE_URL/api/payments/open-payments"
+echo
+```
+
+Use this for a quick presentation showing that the backend is running, PostgreSQL is reachable, and payment requests can be retrieved.
+
+## Architecture
+
+```text
 Customer / Shop Owner
         |
         v
-Frontend or main application
+Frontend or Main Application
         |
-        | HTTP request with JSON
+        | HTTP + JSON
         v
 Interledger Payment Service
         |
-        +----> Validate request and apply payment rules
+        +----> Validate request
         |
-        +----> Persist payment record in PostgreSQL
+        +----> Open Payments SDK
+        |          |
+        |          v
+        |      Open Payments Test Wallet
         |
-        +----> Open Payments / Interledger integration
-        |      (planned; not confirmed as complete)
+        +----> Save request details
+                   |
+                   v
+               PostgreSQL
         |
         v
-Return payment identifier and current status
+Return request details
         |
         v
-Frontend / main application displays the result
+Frontend displays payment information
 ```
 
-This diagram describes the intended architecture, not a claim that every
-step is already implemented.
+The payment service owns payment-specific logic and database access. The frontend should communicate with it over HTTP and must never receive database credentials or private keys.
 
-### Example of how the main application should call the service
+## Project Structure
 
-Once the payment endpoint is implemented, the main application can make
-an HTTP request to the payment service. For example, the intended
-request shape might look like this:
-
-``` http
-POST /api/payments
-Content-Type: application/json
-```
-
-``` json
-{
-  "amount": 100.00,
-  "currency": "ZAR"
-}
-```
-
-This is an illustrative contract only. The final request must match the
-DTO and validation rules actually implemented by the service. Do not
-send this example to the current service expecting it to create a
-payment unless `POST /api/payments` has been implemented.
-
-The frontend should not receive database credentials or private Open
-Payments keys. Those belong on the backend in environment configuration
-or a suitable secret store.
-
-### Integration responsibilities
-
--   **Frontend / main application:** collects the payment request, calls
-    the service, and displays the returned payment status.
--   **Payment Service:** validates payment requests, owns
-    payment-specific business logic, and records payment state.
--   **PostgreSQL:** stores payment records and related metadata once the
-    schema and persistence flow are implemented.
--   **Open Payments / Interledger:** intended interoperability layer for
-    communicating with compatible payment accounts or providers. The
-    exact API calls, authentication, grants, incoming/outgoing payment
-    flow, and callback or polling strategy still need to be documented
-    from the implementation.
--   **Other services:** should integrate through a documented HTTP API
-    or an explicitly configured messaging mechanism. No messaging
-    integration is confirmed in the current Node.js service notes.
-
-For local development, the main application should use a configurable
-base URL such as `http://localhost:3000`, rather than hard-coding the
-URL throughout its source. In a deployed environment, configure the
-service's deployed internal URL.
-
-## Payment data and status
-
-The broader Payment System design has discussed a payment record with
-fields such as:
-
--   `id` --- the service's identifier for the payment.
--   `amount` --- the payment amount.
--   `currency` --- the currency code.
--   `status` --- the current state of the payment.
--   `provider_reference` --- an external transaction or payment-resource
-    identifier, if one is returned by the provider.
-
-These fields describe the intended domain model from project
-discussions. They are **not a claim that a database table or API
-response containing all these fields currently exists**.
-
-A useful lifecycle for a payment integration is:
-
-1.  Validate the incoming request.
-2.  Create a local payment record with a pending state.
-3.  Initiate or request the external payment through the chosen Open
-    Payments flow.
-4.  Store any external resource or transaction reference.
-5.  Update the local status based on a verified result.
-6.  Return or expose the current state to the main application.
-
-A `provider_reference` and a payment `status` represent different
-things. A reference identifies an external resource; it does not, by
-itself, prove that a payment succeeded. The implementation should not
-mark a payment successful solely because a reference exists.
-
-## Project structure
-
-The project notes identify the following structure:
-
-``` text
+```text
 InterledgerPaymentService/
+├── secrets/
+│   └── private.key
 ├── src/
 │   ├── config/
 │   │   └── database.js
 │   ├── controllers/
+│   │   └── openPaymentsController.js
+│   ├── integrations/
+│   │   └── open-payments/
+│   │       ├── wallet-lookup.mjs
+│   │       ├── incomingPayment.mjs
+│   │       └── checkIncomingPayment.mjs
 │   ├── middleware/
+│   │   └── errorHandler.js
+│   ├── main/
+│   │   └── resources/
+│   │       └── db/
+│   │           └── migrations/
+│   │               ├── 001_create_users.sql
+│   │               ├── 002_create_payments.sql
+│   │               └── 003_create_open_payment_requests.sql
 │   ├── routes/
+│   │   └── paymentRoutes.js
 │   ├── services/
-│   ├── test/
+│   │   └── openPaymentService.js
+│   ├── utils/
+│   │   └── logger.js
 │   ├── app.js
 │   └── server.js
-├── main/
-│   └── resources/
-├── test-db.js
+├── tests/
+│   ├── controllers/
+│   │   └── openPaymentsController.test.js
+│   ├── integrations/
+│   │   └── open-payments/
+│   │       ├── wallet-lookup.test.js
+│   │       └── incomingPayment.test.js
+│   └── services/
+│       └── openPaymentService.test.js
+├── .env
+├── .gitignore
+├── node-modules/
 ├── package.json
 ├── package-lock.json
-└── .env
+└── README.md
 ```
 
-Some folders may currently be empty or still under development. Check
-the repository itself for the exact current tree. `src/app.js`
-configures the Express application and middleware; `src/server.js` loads
-environment configuration and starts listening on the configured port;
-`src/config/database.js` contains the database connection setup.
+This shows the main files involved in the Open Payments request flow. Other project files may also exist.
 
-## Testing and troubleshooting
+## Security
 
-### Run tests
+- Never commit `.env`, `secrets/`, private keys, or access tokens.
+- Ensure `.gitignore` excludes `.env`, `secrets/`, and key files.
+- Use test-wallet credentials for demonstrations.
+- Do not expose shared secrets or access tokens in public responses or logs.
+- Add authentication and authorization before exposing payment data outside a trusted development environment.
 
-Inspect `package.json` for the available test script. If a `test` script
-is defined, run:
+## Troubleshooting
 
-``` bash
-npm test
-```
+### Server does not start
 
-If no test script exists yet, add tests and a corresponding script
-before documenting this command as supported. `test-db.js` appears to be
-a database test/helper file; run it only after checking its contents and
-ensuring the configured database is safe to use.
+- Check the terminal error.
+- Confirm `.env` exists and contains the expected variables.
+- Run `npm ci` if dependencies are missing.
+- Check whether port `3000` is already in use.
 
-### Common problems
+### PostgreSQL connection fails
 
-**`npm ci` fails**
+- Confirm PostgreSQL is running.
+- Check the database credentials in `.env`.
+- Confirm the database exists and the database user has permission to connect.
+- Confirm the migration has been applied.
 
--   Confirm that Node.js and npm are installed.
--   Confirm that `package.json` and `package-lock.json` are in the
-    repository root and in sync.
--   Use the Node.js version specified by `.nvmrc` or `package.json`, if
-    the project provides one.
+### Open Payments request fails
 
-**The service does not start**
+- Verify the wallet address, key ID, and private key path.
+- Confirm the private key is readable by the application.
+- Never share the private key or access tokens when asking for help.
 
--   Confirm `.env` exists and contains the variables expected by the
-    code.
--   Check whether the configured port is already in use.
--   Read the terminal error before changing configuration.
+### Payment remains pending
 
-**`/health` works but `/health/database` fails**
+Creating an incoming-payment request does not mean funds have been received. Automatic status synchronization and verified settlement handling are not yet complete.
 
--   Confirm PostgreSQL is running.
--   Confirm the database exists.
--   Check the configured host, port, database name, username, and
-    password.
--   Confirm that the database user has the required permissions.
+## Next Steps
 
-**The service responds, but payment routes return `404`**
+1. Connect incoming-payment status retrieval to the API and persistence layer.
+2. Securely obtain and use the correct read grant/access token for each payment resource.
+3. Update local payment status and received amount using verified external resource state.
+4. Add polling or notification handling to keep the database up to date.
+5. Add automated tests for validation, persistence, errors, and status transitions.
+6. Add API authentication and authorization.
+7. Add an `.env.example` and verify that secret files are excluded from Git.
+8. Document the API contract using OpenAPI/Swagger.
+9. Test the complete payment flow, including a test-wallet payment and verified status update.
 
--   The payment endpoints listed as proposed above may not yet be
-    implemented.
--   Check `src/routes/` and how routes are mounted in `src/app.js`.
+## References
 
-**The database is reachable but payment records cannot be saved**
-
--   The database was empty when this README was prepared.
--   Confirm that the schema/migrations have been created and applied.
--   Confirm that the payment entity/model and repository/database
-    operations are implemented.
-
-## Current limitations and next steps
-
-Based on the available project notes, the next work needed to make this
-a fully usable payment microservice includes:
-
-1.  Confirm and document the exact Node.js, npm, Express, `dotenv`,
-    PostgreSQL, and PostgreSQL-driver versions.
-2.  Add `.env.example` and ensure `.env` is ignored by Git.
-3.  Create the database schema and a reproducible migration/setup
-    process.
-4.  Implement and test payment creation and retrieval endpoints.
-5.  Define request/response DTOs, validation, consistent error
-    responses, and authentication/authorization.
-6.  Implement the actual Open Payments / Interledger integration and
-    document its authentication and payment lifecycle.
-7.  Decide how payment status changes are verified, persisted, and
-    communicated back to the main application.
-8.  Add automated tests and document the exact test command.
-9.  Add an OpenAPI/Swagger specification or equivalent API contract.
-10. Document deployment and any messaging integration only once those
-    components are actually present.
-
-## Open Payments / Interledger references
-
--   [Open Payments: Getting
-    Started](https://openpayments.dev/overview/getting-started/)
--   [Interledger: Get
-    Started](https://interledger.org/developers/get-started/)
--   [Interledger developer
-    portal](https://interledger.org/tech/dev-portal/)
-
-These references explain the broader ecosystem. They do not imply that
-the service already implements every Open Payments or Interledger
-capability.
+- [Open Payments: Getting Started](https://openpayments.dev/overview/getting-started/)
+- [Open Payments SDK Documentation](https://openpayments.dev/sdk/)
+- [Interledger: Get Started](https://interledger.org/developers/get-started/)
+- [Interledger Developer Portal](https://interledger.org/tech/dev-portal/)
